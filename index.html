@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <!--Import Google Icon Font-->
+    <!--link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet"-->
+    <!--Import materialize.css-->
+    <link type="text/css" rel="stylesheet" href="css/materialize.min.css" media="screen,projection" />
+
+    <!--Let browser know website is optimized for mobile-->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <style>
+        canvas {
+            /*width: 100%;*/
+            background-color: antiquewhite;
+        }
+    </style>
+
+</head>
+
+<body style="background-color: aliceblue">
+    <nav class="light-blue lighten-1" role="navigation">
+        <div class="nav-wrapper container">
+            <a id="logo-container" href="#" class="brand-logo center">Snake</a>
+            <div class="right">Best:
+                <span id="best">0</span>
+            </div>
+            <div class="left">Score:
+                <span id="score">0</span>
+            </div>
+    </nav>
+    <div class="row center">
+        <canvas class="card" id="canvas" width="800" height="600"></canvas>
+    </div>
+
+
+
+    <!--JavaScript at end of body for optimized loading-->
+    <script type="text/javascript" src="js/materialize.min.js"></script>
+    <script>
+        let canvas = document.getElementById("canvas");
+        let ctx = canvas.getContext("2d");
+        canvas.style.backgroundColor = "antiquewhite";
+        let cellSize = 20;
+        let tickLenght = 200;
+        let tickNow = performance.now();
+        let tickPrev = performance.now();
+        let score = document.getElementById("score");
+        let best = document.getElementById("best");
+
+
+
+        class Pos {
+            constructor(x, y) {
+                if (x < 0) x = canvas.width / cellSize - 1;
+                if (x > canvas.width / cellSize) x = 0;
+                if (y < 0) y = canvas.height / cellSize - 1;
+                if (y > canvas.height / cellSize) y = canvas.width / cellSize;
+
+                this.x = x % (canvas.width / cellSize);
+                this.y = y % (canvas.height / cellSize);
+            }
+            add(dx, dy) {
+                return new Pos(this.x + dx, this.y + dy);
+
+            }
+            get realx() {
+                return this.x * cellSize;;
+            }
+            get realy() {
+                return this.y * cellSize;;
+            }
+            get hash() {
+                return this.x + "," + this.y;
+            }
+
+        }
+        class Cell {
+            constructor(pos) {
+                this.pos = pos;
+            }
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.pos.realx + cellSize / 2, this.pos.realy + cellSize / 2, cellSize / 2, 0, 2 * Math.PI, false);
+                ctx.fillStyle = 'green';
+                ctx.fill();
+                ctx.lineWidth = 2;
+                ctx.strokeStyle = '#003300';
+                ctx.stroke();
+
+            }
+            drawEye() {
+                let size = cellSize / 8;
+                let x0 = this.pos.realx + cellSize / 2;
+                let y0 = this.pos.realy + cellSize / 2;
+                let eps = cellSize / 4;
+                let righteye = {
+                    "1,0": [x0 + eps, y0 + eps],
+                    "-1,0": [x0 - eps, y0 - eps],
+                    "0,1": [x0 - eps, y0 + eps],
+                    "0,-1": [x0 + eps, y0 - eps],
+                };
+                let lefteye = {
+                    "1,0": [x0 + eps, y0 - eps],
+                    "-1,0": [x0 - eps, y0 + eps],
+                    "0,1": [x0 + eps, y0 + eps],
+                    "0,-1": [x0 - eps, y0 - eps],
+                };
+
+                let dirhash = snake.dir[0] + ',' + snake.dir[1];
+
+                ctx.beginPath();
+                ctx.arc(...righteye[dirhash], size, 0, 2 * Math.PI, false);
+                ctx.fillStyle = 'white';
+                ctx.fill();
+                ctx.lineWidth = 2;
+                ctx.strokeStyle = '#003300';
+                ctx.stroke();
+
+                ctx.beginPath();
+                ctx.arc(...lefteye[dirhash], size, 0, 2 * Math.PI, false);
+                ctx.fillStyle = 'white';
+                ctx.fill();
+                ctx.lineWidth = 2;
+                ctx.strokeStyle = '#003300';
+                ctx.stroke();
+            }
+            move(depl) {
+                ctx.clearRect(this.pos.realx, this.pos.realy, cellSize, cellSize);
+                this.pos.x += depl.x;
+                this.pos.y += depl.y;
+            }
+            get hash() {
+                return this.pos.hash;
+            }
+        }
+
+        class Snake {
+            constructor() {
+                this.reset();
+            }
+
+            reset() {
+                this.pos = new Pos(20, 10);
+                this.len = Math.floor(canvas.width / cellSize / 2);
+                this.body = [];
+                this.map = new Map();
+                this.dir = [1, 0];
+                for (var i = 0; i < this.len; i++) {
+                    this.body.push(new Cell(this.pos.add(-i, 0)));
+                    this.map.set(this.body[i].hash, this.body[i]);
+                }
+
+                // we update the score (reset means game over)
+                let s = parseInt(score.innerText);
+                let b = parseInt(best.innerText);
+
+                score.innerText = 0;
+                if (s > b) {
+                    best.innerText = s;
+                }
+
+            }
+            draw() {
+                this.body.forEach(function (c, i) {
+                    c.draw();
+                    if (i == 0) {
+                        c.drawEye();
+                    }
+                });
+            }
+
+            delTail() {
+                var tail = this.body.pop();
+                this.map.delete(tail.hash)
+                //tail.clear();
+            }
+
+            move() {
+                let head = new Cell(this.body[0].pos.add(...this.dir));
+                if (this.map.has(head.hash)) {
+                    this.reset();
+                    return;
+                }
+                this.map.set(head.hash, head);
+                this.body.unshift(head);
+
+                if (head.hash == apple.hash) {
+                    apple.eat();
+                } else {
+                    this.delTail();
+                }
+
+
+            }
+        }
+
+        class Apple {
+            constructor() {
+                this.grow();
+            }
+            grow() {
+                var rnum = Math.random();
+                this.pos = new Pos(Math.floor(rnum * (canvas.width / cellSize)),
+                    Math.floor(rnum * (canvas.height / cellSize)));
+
+            }
+            draw() {
+                let c = cellSize,
+                    x0 = this.pos.realx + c / 2,
+                    y0 = this.pos.realy + c / 2,
+                    dx = 4,
+                    r = c / 2 - dx / 2 - 2;
+
+                ctx.beginPath();
+                ctx.arc(x0 + c - 1, y0, c, -4 * Math.PI / 5, Math.PI, true);
+                ctx.lineWidth = 3;
+                ctx.strokeStyle = 'green';
+                ctx.stroke();
+
+                ctx.beginPath();
+                ctx.arc(x0 + dx, y0, r, 0, 2 * Math.PI, false);
+                ctx.arc(x0 - dx, y0, r, 0, 2 * Math.PI, false);
+                ctx.lineWidth = 2;
+                ctx.strokeStyle = '#003300';
+                ctx.stroke();
+                ctx.fillStyle = 'red';
+                ctx.fill();
+
+            }
+
+            eat() {
+                let s = parseInt(score.innerText);
+                let b = parseInt(best.innerText);
+
+                s++;
+                score.innerText = s;
+
+                this.grow();
+
+            }
+
+            get hash() {
+                return this.pos.hash;
+            }
+        }
+
+
+        // ---------  event listeners ----------
+
+        document.onkeydown = function (event) {
+            //console.log(event.keyCode);
+            let newdir;
+            switch (event.keyCode) {
+                case 37: newdir = [-1, 0]; break;
+                case 38: newdir = [0, -1]; break;
+                case 39: newdir = [1, 0]; break;
+                case 40: newdir = [0, 1]; break;
+
+            }
+            // to prevent u-turn
+            if (snake.dir[0] + newdir[0] != 0 || snake.dir[1] + newdir[1] != 0) {
+                snake.dir = newdir;
+            }
+        }
+
+        function redraw() {
+            if ((performance.now() - tickPrev) >= tickLenght) {
+                tickPrev = performance.now();
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                apple.draw();
+                snake.draw();
+                snake.move();
+
+
+            }
+            window.requestAnimationFrame(redraw);
+        }
+
+
+        function resizeCanvasToDisplaySize() {
+            // look up the size the canvas is being displayed
+            const width = canvas.clientWidth;
+            const height = canvas.clientHeight;
+
+            // If it's resolution does not match change it
+            if (canvas.width !== width || canvas.height !== height) {
+                canvas.width = width;
+                canvas.height = height;
+                return true;
+            }
+
+            return false;
+        }
+
+        window.onresize = function (event) {
+            resizeCanvasToDisplaySize();
+        }
+
+        // ---------- main --------
+        resizeCanvasToDisplaySize();
+
+        let apple = new Apple();
+        let snake = new Snake();
+        window.requestAnimationFrame(redraw);
+
+
+
+    </script>
+</body>
+
+</html>
